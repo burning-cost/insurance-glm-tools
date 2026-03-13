@@ -17,18 +17,43 @@ The pipeline runs four phases:
 3. **Territory clustering** — groups postcode sectors into territories using SKATER spatial clustering; contiguity is guaranteed by construction
 4. **Outer GLM** — fits the final model with structured factors + embedding vectors + territory fixed effects
 
+The spatial pipeline (`geo_gdf` parameter) requires `pip install "insurance-glm-tools[spatial]"` and a GeoDataFrame of postcode sector polygons. If you do not have spatial data, you can omit the `geo_gdf` argument and the pipeline skips territory clustering — this still gives you the embedding benefit for high-cardinality categoricals.
+
+The example below shows the non-spatial variant, which works with any tabular dataset:
+
 ```python
+import numpy as np
+import polars as pl
 from insurance_glm_tools.nested import NestedGLMPipeline
+
+rng = np.random.default_rng(42)
+n = 1000
+
+# High-cardinality vehicle make/model: 80 distinct values
+vehicle_makes = [f"make_{i:03d}" for i in rng.integers(0, 80, n)]
+
+df = pl.DataFrame({
+    "age_band":          rng.choice(["17-25", "26-35", "36-50", "51-65", "66+"], n),
+    "ncd_years":         rng.integers(0, 10, n),
+    "vehicle_group":     rng.integers(1, 20, n),
+    "vehicle_make_model": vehicle_makes,
+})
+exposure = rng.uniform(0.3, 1.0, n)
+log_rate = (
+    -2.5
+    + 0.03 * (df["ncd_years"].to_numpy() == 0).astype(float)
+    - 0.02 * df["ncd_years"].to_numpy()
+    + 0.02 * df["vehicle_group"].to_numpy()
+)
+y = rng.poisson(np.exp(log_rate) * exposure).astype(float)
 
 pipeline = NestedGLMPipeline(
     base_formula="age_band + ncd_years + vehicle_group",
-    n_territories=150,
-    embedding_epochs=50,
+    embedding_epochs=20,
+    # n_territories and geo_gdf omitted: no spatial clustering
 )
 pipeline.fit(
-    X, y, exposure,
-    geo_gdf=postcode_sectors_gdf,
-    geo_id_col="postcode_sector",
+    df, y, exposure,
     high_card_cols=["vehicle_make_model"],
     base_formula_cols=["age_band", "ncd_years", "vehicle_group"],
 )
@@ -49,11 +74,30 @@ Automates the process of banding ordinal GLM factors. Given a factor with 16 veh
 The standard workflow is three lines:
 
 ```python
+import numpy as np
+import polars as pl
 from insurance_glm_tools.cluster import FactorClusterer
 
+rng = np.random.default_rng(42)
+n = 1000
+
+df = pl.DataFrame({
+    "vehicle_age": rng.integers(0, 15, n),
+    "driver_age":  rng.integers(17, 75, n),
+    "ncd_years":   rng.integers(0, 10, n),
+    "area_code":   rng.integers(1, 6, n),
+})
+exposure = rng.uniform(0.3, 1.0, n)
+log_rate = (
+    -2.5
+    + 0.04 * (df["vehicle_age"].to_numpy() > 8).astype(float)
+    - 0.02 * df["ncd_years"].to_numpy()
+)
+y = rng.poisson(np.exp(log_rate) * exposure).astype(float)
+
 fc = FactorClusterer(family='poisson', lambda_='bic', min_exposure=500)
-fc.fit(X, y, exposure=exposure, ordinal_factors=['vehicle_age', 'ncd_years'])
-X_merged = fc.transform(X)
+fc.fit(df, y, exposure=exposure, ordinal_factors=['vehicle_age', 'ncd_years'])
+X_merged = fc.transform(df)
 
 # Inspect the groupings
 print(fc.level_map('vehicle_age').to_df())

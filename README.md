@@ -98,6 +98,13 @@ Optional plotting: matplotlib
 
 **Why IRLS + Lasso for R2VF?** sklearn's `PoissonRegressor` uses L2 (ridge) penalty — it cannot shrink coefficients to exactly zero, which is necessary for clean level fusion. The IRLS approach with a Lasso inner step gives true L1 penalisation.
 
+## Source repos
+
+This package consolidates two previously separate libraries:
+
+- `insurance-nested-glm` — archived, merged into `insurance_glm_tools.nested`
+- `insurance-glm-cluster` — archived, merged into `insurance_glm_tools.cluster`
+
 ## References
 
 - Wang R, Shi H, Cao J (2025). A Nested GLM Framework with Neural Network Encoding and Spatially Constrained Clustering in Non-Life Insurance Ratemaking. *North American Actuarial Journal*, 29(3).

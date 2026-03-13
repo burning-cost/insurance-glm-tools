@@ -14,10 +14,26 @@ Quick imports::
 
     from insurance_glm_tools.nested import NestedGLM, EmbeddingNet, NestedGLMPipeline
     from insurance_glm_tools.cluster import FactorClusterer, LevelMap
+
+Top-level convenience imports::
+
+    from insurance_glm_tools import NestedGLMPipeline, FactorClusterer
 """
 
 from __future__ import annotations
 
+# Top-level convenience imports — avoids requiring users to remember subpackage paths
+# for the two most commonly used entry points.
+from insurance_glm_tools.nested import NestedGLMPipeline
+from insurance_glm_tools.cluster import FactorClusterer, LevelMap
+
 __version__ = "0.1.0"
 
-__all__ = ["nested", "cluster", "__version__"]
+__all__ = [
+    "nested",
+    "cluster",
+    "NestedGLMPipeline",
+    "FactorClusterer",
+    "LevelMap",
+    "__version__",
+]

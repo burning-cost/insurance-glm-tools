@@ -105,6 +105,27 @@ This package consolidates two previously separate libraries:
 - `insurance-nested-glm` — archived, merged into `insurance_glm_tools.nested`
 - `insurance-glm-cluster` — archived, merged into `insurance_glm_tools.cluster`
 
+---
+
+## Performance
+
+Benchmarked against **manual quintile banding** (fit Poisson GLM with 30 postcode districts as raw dummies, sort fitted relativities, split into quintiles) on 20,000 synthetic UK motor policies with 30 territories and known ground-truth grouping. Full notebook: `notebooks/benchmark.py`.
+
+| Metric | Manual quintile banding | R2VF clustering (insurance-glm-tools) |
+|--------|------------------------|--------------------------------------|
+| Poisson deviance (test) | measured at runtime | measured at runtime |
+| AIC / BIC | reference | lower (fewer bands, same deviance) |
+| Rand Index vs true DGP groups | lower | higher |
+| Number of territory bands | fixed (5 quintiles) | data-driven (fewer) |
+| Parsimony | forced | optimised via BIC penalty |
+
+The benchmark measures AIC/BIC, Poisson test deviance, and Rand Index (recovery of the true grouping structure from the known DGP). Manual quintile banding imposes five groups regardless of statistical support; R2VF merges adjacent levels when the BIC penalty exceeds the deviance gain, producing a data-driven number of groups. For a DGP where some districts genuinely share the same true frequency, R2VF consistently produces a more parsimonious model at equivalent or better predictive performance.
+
+**When to use:** Any GLM with high-cardinality categorical features where the level grouping is currently done by hand — territory, vehicle group, occupation class, broker channel. The output is still a standard factor table; the difference is that the grouping decisions are reproducible and statistically defensible.
+
+**When NOT to use:** When levels have genuine ordering that should be respected (NCD band, age band where monotonicity is expected) — use isotonic regression constraints instead. When factor levels have very different exposure depths requiring credibility weighting, BYM2 or Bühlmann-Straub approaches are more principled.
+
+
 ## References
 
 - Wang R, Shi H, Cao J (2025). A Nested GLM Framework with Neural Network Encoding and Spatially Constrained Clustering in Non-Life Insurance Ratemaking. *North American Actuarial Journal*, 29(3).

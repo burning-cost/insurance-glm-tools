@@ -170,6 +170,11 @@ The benchmark measures AIC/BIC, Poisson test deviance, and Rand Index (recovery 
 **When NOT to use:** When levels have genuine ordering that should be respected (NCD band, age band where monotonicity is expected) — use isotonic regression constraints instead. When factor levels have very different exposure depths requiring credibility weighting, BYM2 or Bühlmann-Straub approaches are more principled.
 
 
+
+## Databricks Notebook
+
+A ready-to-run Databricks notebook benchmarking this library against standard approaches is available in [burning-cost-examples](https://github.com/burning-cost/burning-cost-examples/blob/main/notebooks/insurance_glm_tools_demo.py).
+
 ## References
 
 - Wang R, Shi H, Cao J (2025). A Nested GLM Framework with Neural Network Encoding and Spatially Constrained Clustering in Non-Life Insurance Ratemaking. *North American Actuarial Journal*, 29(3).

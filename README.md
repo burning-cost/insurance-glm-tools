@@ -174,3 +174,12 @@ The benchmark measures AIC/BIC, Poisson test deviance, and Rand Index (recovery 
 
 - Wang R, Shi H, Cao J (2025). A Nested GLM Framework with Neural Network Encoding and Spatially Constrained Clustering in Non-Life Insurance Ratemaking. *North American Actuarial Journal*, 29(3).
 - Ben Dror I (2025). R2VF: Regularized Ratemaking via Variable Fusion. arXiv:2503.01521.
+
+## Related Libraries
+
+| Library | What it does |
+|---------|-------------|
+| [insurance-gam](https://github.com/burning-cost/insurance-gam) | Generalised Additive Models — smooth non-linear effects as an alternative to discretised GLM factor levels |
+| [insurance-spatial](https://github.com/burning-cost/insurance-spatial) | BYM2 spatial territory ratemaking — use GLM tools to band the resulting territory relativities into factor levels |
+| [insurance-whittaker](https://github.com/burning-cost/insurance-whittaker) | Whittaker-Henderson graduation — smooth development triangles and rate level indices before GLM fitting |
+

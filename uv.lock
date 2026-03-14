@@ -672,6 +672,11 @@ spatial = [
     { name = "spopt", version = "0.7.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "geopandas", marker = "extra == 'all'", specifier = ">=0.13" },
@@ -697,6 +702,9 @@ requires-dist = [
     { name = "torch", specifier = ">=2.0" },
 ]
 provides-extras = ["spatial", "plot", "all", "dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.0.2" }]
 
 [[package]]
 name = "jinja2"

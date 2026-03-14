@@ -1,5 +1,10 @@
 # insurance-glm-tools
 
+[![PyPI](https://img.shields.io/pypi/v/insurance-glm-tools)](https://pypi.org/project/insurance-glm-tools/)
+[![Python](https://img.shields.io/pypi/pyversions/insurance-glm-tools)](https://pypi.org/project/insurance-glm-tools/)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)]()
+[![License](https://img.shields.io/badge/license-BSD--3-blue)]()
+
 Two GLM tools for UK insurance pricing, combined into one package.
 
 Pricing actuaries spend a lot of time on two tasks that should be automated: deciding how to band ordinal rating factors (vehicle age, NCD years) and building territory ratings that respect spatial structure. This package handles both.
@@ -231,4 +236,3 @@ A ready-to-run Databricks notebook benchmarking this library against standard ap
 | [insurance-gam](https://github.com/burning-cost/insurance-gam) | Generalised Additive Models — smooth non-linear effects as an alternative to discretised GLM factor levels |
 | [insurance-spatial](https://github.com/burning-cost/insurance-spatial) | BYM2 spatial territory ratemaking — use GLM tools to band the resulting territory relativities into factor levels |
 | [insurance-whittaker](https://github.com/burning-cost/insurance-whittaker) | Whittaker-Henderson graduation — smooth development triangles and rate level indices before GLM fitting |
-

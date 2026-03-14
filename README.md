@@ -4,6 +4,50 @@ Two GLM tools for UK insurance pricing, combined into one package.
 
 Pricing actuaries spend a lot of time on two tasks that should be automated: deciding how to band ordinal rating factors (vehicle age, NCD years) and building territory ratings that respect spatial structure. This package handles both.
 
+## Quick Start
+
+```bash
+pip install insurance-glm-tools
+```
+
+```python
+import numpy as np
+import polars as pl
+from insurance_glm_tools.cluster import FactorClusterer
+
+rng = np.random.default_rng(42)
+n = 5000
+
+# 16 vehicle age levels — true DGP has a break at year 8 and another at year 12
+df = pl.DataFrame({
+    "vehicle_age": rng.integers(0, 16, n),
+    "ncd_years":   rng.integers(0, 10, n),
+    "driver_age":  rng.integers(17, 75, n),
+})
+exposure = rng.uniform(0.3, 1.0, n)
+log_rate = (
+    -2.5
+    + 0.3 * (df["vehicle_age"].to_numpy() > 8).astype(float)
+    + 0.5 * (df["vehicle_age"].to_numpy() > 12).astype(float)
+    - 0.12 * df["ncd_years"].to_numpy()
+)
+y = rng.poisson(np.exp(log_rate) * exposure).astype(float)
+
+# BIC selects regularisation strength; adjacent levels with zero difference are merged
+fc = FactorClusterer(family="poisson", lambda_="bic", min_exposure=200)
+fc.fit(df, y, exposure=exposure, ordinal_factors=["vehicle_age", "ncd_years"])
+
+print(fc.level_map("vehicle_age").to_df())
+# vehicle_age  group
+# 0–8          0      <- low-risk band
+# 9–12         1      <- mid-risk band
+# 13–15        2      <- high-risk band
+
+X_merged = fc.transform(df)
+result = fc.refit_glm(X_merged, y, exposure=exposure)
+print(result.summary())
+```
+
 ## Subpackages
 
 ### `insurance_glm_tools.nested` — Nested GLM with entity embeddings

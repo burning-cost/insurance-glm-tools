@@ -31,7 +31,14 @@ from .penalties import (
     beta_to_delta,
     identify_merged_groups,
 )
-from .constraints import enforce_min_exposure, relabel_groups_contiguous
+from .constraints import (
+    enforce_min_exposure,
+    enforce_min_claims,
+    enforce_monotonicity,
+    check_monotonicity,
+    relabel_groups_contiguous,
+)
+from .split_coding import build_split_coding_matrix, apply_split_coding
 
 __all__ = [
     "FactorClusterer",
@@ -43,5 +50,10 @@ __all__ = [
     "beta_to_delta",
     "identify_merged_groups",
     "enforce_min_exposure",
+    "enforce_min_claims",
+    "enforce_monotonicity",
+    "check_monotonicity",
     "relabel_groups_contiguous",
+    "build_split_coding_matrix",
+    "apply_split_coding",
 ]

@@ -46,7 +46,7 @@ class TerritoryClusterer:
     Notes
     -----
     ``geopandas``, ``libpysal``, and ``spopt`` must be installed.  Install
-    with ``pip install insurance-nested-glm[spatial]``.
+    with ``pip install insurance-glm-tools[spatial]``.
     """
 
     def __init__(
@@ -99,7 +99,7 @@ class TerritoryClusterer:
         except ImportError as exc:
             raise ImportError(
                 "Spatial clustering requires geopandas, libpysal, and spopt. "
-                "Install with: pip install insurance-nested-glm[spatial]"
+                "Install with: pip install insurance-glm-tools[spatial]"
             ) from exc
 
         feature_cols = list(feature_cols)

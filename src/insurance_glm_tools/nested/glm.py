@@ -157,7 +157,7 @@ class NestedGLM:
         X: pd.DataFrame,
         exposure: Optional[np.ndarray] = None,
     ) -> np.ndarray:
-        """Return predicted mean response (frequency or severity).
+        """Return predicted per-unit rate (frequency or severity).
 
         Parameters
         ----------
@@ -169,7 +169,10 @@ class NestedGLM:
         Returns
         -------
         np.ndarray
-            Predicted values, shape ``(n,)``.
+            Predicted per-unit rate, shape ``(n,)``. The offset (log exposure)
+            used during training is NOT re-applied at prediction time by
+            statsmodels — this returns the rate, not the expected count.
+            To obtain expected claim counts: ``rate * exposure``.
         """
         self._check_fitted()
         assert self._result is not None

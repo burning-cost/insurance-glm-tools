@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/insurance-glm-tools)](https://pypi.org/project/insurance-glm-tools/)
 [![Python](https://img.shields.io/pypi/pyversions/insurance-glm-tools)](https://pypi.org/project/insurance-glm-tools/)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)]()
-[![License](https://img.shields.io/badge/license-BSD--3-blue)]()
+[![License](https://img.shields.io/badge/license-MIT-blue)]()
 
 Two GLM tools for UK insurance pricing, combined into one package.
 
@@ -17,14 +17,14 @@ pip install insurance-glm-tools
 
 ```python
 import numpy as np
-import polars as pl
+import pandas as pd
 from insurance_glm_tools.cluster import FactorClusterer
 
 rng = np.random.default_rng(42)
 n = 5000
 
 # 16 vehicle age levels — true DGP has a break at year 8 and another at year 12
-df = pl.DataFrame({
+df = pd.DataFrame({
     "vehicle_age": rng.integers(0, 16, n),
     "ncd_years":   rng.integers(0, 10, n),
     "driver_age":  rng.integers(17, 75, n),
@@ -43,10 +43,20 @@ fc = FactorClusterer(family="poisson", lambda_="bic", min_exposure=200)
 fc.fit(df, y, exposure=exposure, ordinal_factors=["vehicle_age", "ncd_years"])
 
 print(fc.level_map("vehicle_age").to_df())
-# vehicle_age  group
-# 0–8          0      <- low-risk band
-# 9–12         1      <- mid-risk band
-# 13–15        2      <- high-risk band
+#    original_level  merged_group  coefficient  group_exposure
+# 0               0             0    -0.117359     1853.927617
+# 1               1             0    -0.117359     1853.927617
+# ...
+# 8               8             0    -0.117359     1853.927617
+# 9               9             1     0.192394     1401.495288
+# 10             10             1     0.192394     1401.495288
+# ...
+# 15             15             1     0.192394     1401.495288
+#
+# BIC selects 2 groups: levels 0-8 (low-risk) and 9-15 (high-risk).
+# The DGP has a second break at year 12, but with min_exposure=200 and
+# n=5000 there is insufficient data to resolve three distinct bands at
+# this sample size — BIC correctly prefers parsimony.
 
 X_merged = fc.transform(df)
 result = fc.refit_glm(X_merged, y, exposure=exposure)
@@ -72,7 +82,7 @@ The example below shows the non-spatial variant, which works with any tabular da
 
 ```python
 import numpy as np
-import polars as pl
+import pandas as pd
 from insurance_glm_tools.nested import NestedGLMPipeline
 
 rng = np.random.default_rng(42)
@@ -81,7 +91,7 @@ n = 1000
 # High-cardinality vehicle make/model: 80 distinct values
 vehicle_makes = [f"make_{i:03d}" for i in rng.integers(0, 80, n)]
 
-df = pl.DataFrame({
+df = pd.DataFrame({
     "age_band":          rng.choice(["17-25", "26-35", "36-50", "51-65", "66+"], n),
     "ncd_years":         rng.integers(0, 10, n),
     "vehicle_group":     rng.integers(1, 20, n),
@@ -124,14 +134,14 @@ The standard workflow is three lines:
 
 ```python
 import numpy as np
-import polars as pl
+import pandas as pd
 from insurance_glm_tools.cluster import FactorClusterer
 
 rng = np.random.default_rng(42)
 n = 1000
 
-df = pl.DataFrame({
-    "vehicle_age": rng.integers(0, 15, n),
+df = pd.DataFrame({
+    "vehicle_age": rng.integers(0, 16, n),
     "driver_age":  rng.integers(17, 75, n),
     "ncd_years":   rng.integers(0, 10, n),
     "area_code":   rng.integers(1, 6, n),
@@ -203,6 +213,8 @@ This package consolidates two previously separate libraries:
 ## Performance
 
 Benchmarked on Databricks serverless, 2026-03-16. DGP: 20,000 synthetic UK motor policies, 30 postcode districts, 7-band true territory structure. Baseline: fit a PoissonRegressor with all 30 districts as dummies, extract fitted relativities, sort into 5 quintile bands, refit. R2VF: fit FactorClusterer with BIC-selected fused lasso, refit unpenalised GLM on merged encoding.
+
+**Note on ordering:** For R2VF to be meaningful on postcode districts, districts must be pre-ordered by fitted relativity (e.g. ascending GLM coefficient) before passing them as an ordinal factor. R2VF's fused lasso merges *adjacent* levels — it assumes that neighbouring indices are risk-neighbours. Without this ordering step, the fused lasso has no meaningful structure to exploit.
 
 | Metric | Manual quintile banding | R2VF (BIC-selected) |
 |--------|------------------------|----------------------|

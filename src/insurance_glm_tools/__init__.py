@@ -27,7 +27,7 @@ from __future__ import annotations
 from insurance_glm_tools.nested import NestedGLMPipeline
 from insurance_glm_tools.cluster import FactorClusterer, LevelMap
 
-__version__ = "0.1.0"
+__version__ = "0.1.4"
 
 __all__ = [
     "nested",

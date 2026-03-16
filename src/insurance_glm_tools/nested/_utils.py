@@ -33,7 +33,7 @@ def build_adjacency(
     except ImportError as exc:
         raise ImportError(
             "build_adjacency requires libpysal. "
-            "Install with: pip install insurance-nested-glm[spatial]"
+            "Install with: pip install insurance-glm-tools[spatial]"
         ) from exc
 
     import warnings
@@ -76,7 +76,7 @@ def plot_territory_map(
     except ImportError as exc:
         raise ImportError(
             "plot_territory_map requires matplotlib. "
-            "Install with: pip install insurance-nested-glm[plot]"
+            "Install with: pip install insurance-glm-tools[plot]"
         ) from exc
 
     gdf = gdf.copy()
@@ -123,7 +123,7 @@ def embedding_pca_plot(
     except ImportError as exc:
         raise ImportError(
             "embedding_pca_plot requires matplotlib. "
-            "Install with: pip install insurance-nested-glm[plot]"
+            "Install with: pip install insurance-glm-tools[plot]"
         ) from exc
 
     from sklearn.decomposition import PCA

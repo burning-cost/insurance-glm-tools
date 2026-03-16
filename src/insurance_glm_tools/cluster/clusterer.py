@@ -248,7 +248,8 @@ def _gamma_irls_lasso(
     """
     Fit Gamma GLM with log link and L1 lasso penalty via IRLS.
 
-    For Gamma: W = mu^2, z = eta + (y - mu) / mu.
+    For Gamma with log link: V(mu)*g'(mu)^2 = mu^2*(1/mu)^2 = 1, so W = obs_weights
+    (frequency weights). Working response: z = eta + (y - mu) / mu.
 
     The L1 penalty is applied only to δ₂,...,δ_K for each factor.
     δ₁ anchors are unpenalised and updated via WLS.

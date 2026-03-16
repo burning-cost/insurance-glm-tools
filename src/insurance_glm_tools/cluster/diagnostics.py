@@ -4,9 +4,15 @@ BIC computation and diagnostic path tracking for lambda selection.
 BIC(λ) = -2·ℓ(β̂(λ)) + K_eff(λ)·log(n)
 
 where ℓ is the log-likelihood evaluated at the fitted coefficients and K_eff
-is the effective degrees of freedom — the number of distinct merged groups
-summed across all factors. When two adjacent levels are fused, K_eff decreases
-by one; BIC trades off fit against parsimony.
+is the effective degrees of freedom, computed as:
+
+    K_eff = 1 + sum(G_f - 1 for each factor f)
+
+where G_f is the number of distinct merged groups for factor f, and the leading
+1 accounts for the intercept. Each factor contributes G_f - 1 free parameters
+because one group is absorbed into the intercept as the reference level.
+When two adjacent levels are fused, K_eff decreases by one; BIC trades off
+fit against parsimony.
 
 We fit over a log-spaced grid of 50 lambdas and return the full diagnostic
 path so practitioners can inspect the tradeoff themselves.
@@ -19,7 +25,6 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from sklearn.linear_model import PoissonRegressor, GammaRegressor
 
 
 @dataclass
@@ -191,72 +196,3 @@ def compute_bic(
     float
     """
     return -2.0 * log_likelihood + k_eff * np.log(n)
-
-
-def estimate_lambda_max(
-    X_split: NDArray[np.float64],
-    y_adj: NDArray[np.float64],
-    sample_weight: NDArray[np.float64] | None,
-    family: str,
-    n_col_per_factor: list[int],
-) -> float:
-    """
-    Estimate lambda_max: smallest λ that fully collapses all factors.
-
-    Uses a heuristic: fit with a very large alpha and find where all
-    split-coded differences vanish. We return a conservative upper bound
-    based on the score statistic at the null model.
-
-    For practical purposes we use sklearn's built-in max_iter and increase
-    alpha until the model is effectively null.
-
-    Parameters
-    ----------
-    X_split : NDArray[np.float64]
-        Split-coded design matrix.
-    y_adj : NDArray[np.float64]
-        Adjusted response for penalised fit.
-    sample_weight : NDArray[np.float64] or None
-        Sample weights.
-    family : str
-        'poisson' or 'gamma'.
-    n_col_per_factor : list[int]
-        Number of split-coded columns per factor (for identifying first columns).
-
-    Returns
-    -------
-    float
-        Estimated lambda_max.
-    """
-    # Binary search for the smallest alpha that yields all-zero fusion deltas.
-    # Simpler heuristic: use 10x the largest gradient at the null.
-    # For GLM with log link and intercept, the score at null ~ (y - mean(y)).
-    # We use a practical upper bound.
-    alpha_max = 1.0
-    for _ in range(20):
-        try:
-            if family == "poisson":
-                m = PoissonRegressor(alpha=alpha_max, fit_intercept=True, max_iter=200)
-            else:
-                m = GammaRegressor(alpha=alpha_max, fit_intercept=True, max_iter=200)
-            m.fit(X_split, y_adj, sample_weight=sample_weight)
-            # Check if all non-first split deltas are near zero
-            coef = m.coef_
-            # Columns 1+ within each factor block are the delta_2,...,delta_K
-            offset = 0
-            all_zero = True
-            for n_cols in n_col_per_factor:
-                if n_cols > 1:
-                    diffs = coef[offset + 1 : offset + n_cols]
-                    if np.any(np.abs(diffs) > 1e-4):
-                        all_zero = False
-                        break
-                offset += n_cols
-
-            if all_zero:
-                return alpha_max
-            alpha_max *= 3.0
-        except Exception:
-            alpha_max *= 3.0
-
-    return alpha_max

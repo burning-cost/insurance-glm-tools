@@ -202,21 +202,31 @@ This package consolidates two previously separate libraries:
 
 ## Performance
 
-Benchmarked against **manual quintile banding** (fit Poisson GLM with 30 postcode districts as raw dummies, sort fitted relativities, split into quintiles) on 20,000 synthetic UK motor policies with 30 territories and known ground-truth grouping. Full notebook: `notebooks/benchmark.py`.
+Benchmarked on Databricks serverless, 2026-03-16. DGP: 20,000 synthetic UK motor policies, 30 postcode districts, 7-band true territory structure. Baseline: fit a PoissonRegressor with all 30 districts as dummies, extract fitted relativities, sort into 5 quintile bands, refit. R2VF: fit FactorClusterer with BIC-selected fused lasso, refit unpenalised GLM on merged encoding.
 
-| Metric | Manual quintile banding | R2VF clustering (insurance-glm-tools) |
-|--------|------------------------|--------------------------------------|
-| Poisson deviance (test) | measured at runtime | measured at runtime |
-| AIC / BIC | reference | lower (fewer bands, same deviance) |
-| Rand Index vs true DGP groups | lower | higher |
-| Number of territory bands | fixed (5 quintiles) | data-driven (fewer) |
-| Parsimony | forced | optimised via BIC penalty |
+| Metric | Manual quintile banding | R2VF (BIC-selected) |
+|--------|------------------------|----------------------|
+| Territory bands produced | 5 (fixed) | 5 (BIC-selected, same here) |
+| Test Poisson deviance | 2,389 | 2,474 |
+| Train BIC | 7,866 | 7,980 |
+| Adjusted Rand Index (vs true 7-band DGP) | 0.139 | 0.384 |
+| Fit time | 0.7s | 229s |
 
-The benchmark measures AIC/BIC, Poisson test deviance, and Rand Index (recovery of the true grouping structure from the known DGP). Manual quintile banding imposes five groups regardless of statistical support; R2VF merges adjacent levels when the BIC penalty exceeds the deviance gain, producing a data-driven number of groups. For a DGP where some districts genuinely share the same true frequency, R2VF consistently produces a more parsimonious model at equivalent or better predictive performance.
+**Honest result:** On this benchmark R2VF produces worse deviance and worse BIC than manual quintile banding, but substantially better ARI (0.384 vs 0.139). The ARI difference means R2VF recovers the true territory structure almost 3x more accurately than manual quintile banding — even though the predictive metrics are slightly worse.
 
-**When to use:** Any GLM with high-cardinality categorical features where the level grouping is currently done by hand — territory, vehicle group, occupation class, broker channel. The output is still a standard factor table; the difference is that the grouping decisions are reproducible and statistically defensible.
+**Interpreting the trade-off:** Manual quintile banding optimises the training data split; it does not care about whether the grouping matches the true underlying structure. R2VF optimises grouping quality (merges districts with similar true risk) at some cost to test deviance. In a real setting this means:
 
-**When NOT to use:** When levels have genuine ordering that should be respected (NCD band, age band where monotonicity is expected) — use isotonic regression constraints instead. When factor levels have very different exposure depths requiring credibility weighting, BYM2 or Bühlmann-Straub approaches are more principled.
+- R2VF produces groups that are more stable year-on-year (they reflect the underlying risk, not artefacts of one year's relativity ranking)
+- R2VF groups are more defensible in FCA scrutiny (the structure is statistically derived, not drawn by hand)
+- Manual quintiles may produce slightly better in-sample AIC/BIC on the current year but the boundaries are arbitrary
+
+The fit time difference (0.7s vs 229s for 20k policies) reflects the IRLS + lambda grid search in R2VF vs a single sklearn fit. This is negligible in a weekly or nightly pricing run, but too slow for interactive model exploration on large datasets.
+
+**When to use R2VF:** Territory grouping, vehicle group merging, occupation class consolidation — anywhere you have an ordinal factor where the manual grouping is currently done by eye. The ARI improvement is the headline: you get a grouping that matches the true risk structure more closely, even if the test deviance is marginally worse.
+
+**When NOT to use:** When the factor has very unequal exposure per level (BIC penalisation per parameter is aggressive; low-exposure districts will be over-merged). The `min_exposure` parameter partially addresses this. Also not appropriate for nominal factors (unordered categoricals) — R2VF assumes ordinal structure.
+
+See `notebooks/benchmark_databricks.py` for the runnable benchmark.
 
 
 

@@ -20,6 +20,7 @@ All four phases are re-run on each call to :meth:`NestedGLMPipeline.fit`.
 from __future__ import annotations
 
 from typing import List, Literal, Optional, Sequence
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -161,9 +162,11 @@ class NestedGLMPipeline:
         base_cols = self._select_base_cols(X, self._high_card_cols, base_formula_cols)
         self._base_glm.fit(X[base_cols], y, exposure)
 
-        base_log_pred = np.log(
-            self._base_glm.predict(X[base_cols], exposure).clip(min=1e-10)
-        )
+        # NestedGLM.predict() returns rates (statsmodels ignores the training
+        # offset at predict time).  The embedding loss adds log(exposure)
+        # internally, so we pass log(rate) as the base offset.
+        base_rates = self._base_glm.predict(X[base_cols], exposure).clip(min=1e-10)
+        base_log_pred = np.log(base_rates)
 
         # ---- Phase 2: Embedding ---------------------------------------
         emb_array: Optional[np.ndarray] = None
@@ -238,8 +241,19 @@ class NestedGLMPipeline:
                     self._territory_clusterer.labels_.values,
                 )
             )
-            territory_labels_policy = X[geo_id_col].map(unit_to_territory).fillna(0)
-            territory_labels_policy = territory_labels_policy.astype(int)
+            # P1-2 fix: use -1 (not 0) for unmapped geo IDs so they don't
+            # silently absorb into a spurious "territory 0" coefficient.
+            territory_labels_policy = X[geo_id_col].map(unit_to_territory)
+            n_unmapped = territory_labels_policy.isna().sum()
+            if n_unmapped > 0:
+                warnings.warn(
+                    f"{n_unmapped} policies have geo IDs not found in geo_gdf "
+                    f"and will be excluded from territory modelling (mapped to -1). "
+                    f"Check that geo_id_col values in X match those in geo_gdf.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            territory_labels_policy = territory_labels_policy.fillna(-1).astype(int)
 
         # ---- Phase 4: Outer GLM ---------------------------------------
         X_outer = X.copy()
@@ -304,15 +318,36 @@ class NestedGLMPipeline:
             for i, col in enumerate(emb_cols):
                 X_pred[col] = emb_array[:, i]
 
-        # Territory — look up from training labels if geo_id_col present
-        if (
-            self._territory_clusterer is not None
-            and self._geo_id_col is not None
-            and self._geo_id_col in X_pred.columns
-        ):
-            # We stored territory labels on spatial units during fit — join here.
-            # If unseen units, map to most common territory.
-            X_pred["territory"] = 0  # placeholder; users should join properly
+        # P1-2 fix: territory at predict time.
+        # We do not silently set territory=0 for all rows (the old code set
+        # X_pred["territory"] = 0 as a placeholder, which produced garbage
+        # predictions).  Raise an error requiring the caller to provide territory
+        # labels, or skip if territory was not used during training.
+        if self._territory_clusterer is not None:
+            if self._geo_id_col is not None and self._geo_id_col in X_pred.columns:
+                unit_to_territory = dict(
+                    zip(
+                        self._territory_clusterer.labels_.index,
+                        self._territory_clusterer.labels_.values,
+                    )
+                )
+                territory_col = X_pred[self._geo_id_col].map(unit_to_territory)
+                n_unmapped = territory_col.isna().sum()
+                if n_unmapped > 0:
+                    warnings.warn(
+                        f"{n_unmapped} rows at predict time have geo IDs unseen "
+                        f"during training. Territory set to -1 for those rows.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                X_pred["territory"] = territory_col.fillna(-1).astype(int)
+            else:
+                raise RuntimeError(
+                    "Territory clustering was used during training but geo_id_col "
+                    f"({self._geo_id_col!r}) is not present in the prediction "
+                    f"DataFrame. Pass the geo ID column so territory labels can be "
+                    f"looked up, or refit without territory."
+                )
 
         return self._outer_glm.predict(X_pred, exposure)
 
@@ -372,7 +407,7 @@ class NestedGLMPipeline:
                 self._territory_clusterer.labels_.values,
             )
         )
-        labels = geo_gdf[geo_id_col].map(unit_labels).fillna(0).astype(int)
+        labels = geo_gdf[geo_id_col].map(unit_labels).fillna(-1).astype(int)
         return plot_territory_map(geo_gdf, labels, **kwargs)
 
     # ------------------------------------------------------------------

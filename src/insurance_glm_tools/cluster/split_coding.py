@@ -13,9 +13,8 @@ The split-coding trick reduces the fused lasso penalty on adjacent differences
 (λ·Σ|β_i - β_{i-1}|) to a plain L1 penalty after a change of basis. The
 transformation matrix T is a lower-triangular matrix of ones: β = T @ δ.
 
-The inverse transform gives the design matrix in δ-space from a one-hot X:
-X_delta = X @ T^{-T} which, for the lower-triangular-ones T, is equivalent
-to a reversed cumulative sum along columns.
+The split-coded design matrix is X_split = X_onehot @ T.  Fitting with an L1
+penalty on the δ coefficients in this basis recovers the fused lasso on β.
 """
 
 from __future__ import annotations
@@ -60,15 +59,15 @@ def apply_split_coding(X: NDArray[np.float64]) -> NDArray[np.float64]:
     """
     Transform a one-hot design matrix from β-space to δ-space using split coding.
 
-    If X has columns [x_0, x_1, ..., x_{K-1}] corresponding to level
-    indicators, the transformed matrix X_delta = X @ T^{-T} such that fitting
-    with an L1 penalty on the transformed coefficients δ achieves the fused
-    lasso on the original β.
+    If X_onehot has columns [x_0, x_1, ..., x_{K-1}] corresponding to level
+    indicators, the split-coded design matrix is X_split = X_onehot @ T, where
+    T is the lower-triangular-ones matrix.  Fitting an L1-penalised GLM on the
+    δ coefficients in this basis is equivalent to the fused lasso on the
+    original β coefficients.
 
-    In practice, for the split-coded design matrix, each column is the
-    cumulative sum from that column to the last: X_delta[:, i] = sum of
-    X[:, i:] along axis=1, which is equivalent to X @ T^{-T} where T is
-    the lower-triangular-ones matrix.
+    In this encoding, column j of X_split has a 1 for every observation whose
+    factor level is >= j.  Equivalently, X_split[:, j] = sum(X_onehot[:, j:],
+    axis=1).
 
     Parameters
     ----------
@@ -89,6 +88,6 @@ def apply_split_coding(X: NDArray[np.float64]) -> NDArray[np.float64]:
            [1., 1., 0.],
            [1., 1., 1.]])
     """
-    # X_delta[:, i] = sum(X[:, i:], axis=1)
+    # X_split[:, j] = sum(X[:, j:], axis=1)
     # Vectorised: reverse cumsum along axis=1, then reverse back
     return np.cumsum(X[:, ::-1], axis=1)[:, ::-1].astype(np.float64)

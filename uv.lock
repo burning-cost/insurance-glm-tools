@@ -626,7 +626,7 @@ wheels = [
 
 [[package]]
 name = "insurance-glm-tools"
-version = "0.1.0"
+version = "0.1.3"
 source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -698,7 +698,7 @@ requires-dist = [
     { name = "spopt", marker = "extra == 'all'", specifier = ">=0.5" },
     { name = "spopt", marker = "extra == 'dev'", specifier = ">=0.5" },
     { name = "spopt", marker = "extra == 'spatial'", specifier = ">=0.5" },
-    { name = "statsmodels", specifier = ">=0.14" },
+    { name = "statsmodels", specifier = ">=0.14.5" },
     { name = "torch", specifier = ">=2.0" },
 ]
 provides-extras = ["spatial", "plot", "all", "dev"]

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "insurance-glm-tools"
-version = "0.1.2"
+version = "0.1.3"
 description = "GLM tools for UK insurance pricing: nested GLMs with entity embeddings, territory clustering, and automated factor-level banding via R2VF"
 readme = "README.md"
 license = { text = "MIT" }

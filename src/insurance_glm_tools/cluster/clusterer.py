@@ -15,6 +15,11 @@ Implementation note on penalisation:
   coefficients to exactly zero. The fused lasso requires L1. We implement
   Poisson/Gamma GLM with L1 penalty via IRLS: at each Newton step we solve a
   weighted Lasso on the working response, using sklearn's coordinate descent.
+
+  Crucially, δ₁ = β₁ (the anchor/reference level for each factor) is NOT
+  penalised — only δ₂,...,δ_K (adjacent differences) receive the L1 penalty.
+  The IRLS inner step partitions columns into penalised (δ₂+) and unpenalised
+  (δ₁), updating each group appropriately.
 """
 
 from __future__ import annotations
@@ -56,11 +61,55 @@ Family = Literal["poisson", "gamma"]
 _LASSO_TOL = 1e-6
 
 
+def _build_penalised_mask(n_col_per_factor: list[int]) -> NDArray[np.bool_]:
+    """
+    Build a boolean mask of length sum(n_col_per_factor).
+
+    True  => column is penalised (δ₂, δ₃, ..., δ_K for each factor).
+    False => column is unpenalised (δ₁, the anchor for each factor).
+
+    For a factor with K levels the split-coded block has K columns.
+    Column 0 within the block is δ₁ and must be excluded from the L1 penalty.
+    """
+    mask = []
+    for k in n_col_per_factor:
+        mask.append(False)       # δ₁ unpenalised
+        mask.extend([True] * (k - 1))  # δ₂,...,δ_K penalised
+    return np.array(mask, dtype=bool)
+
+
+def _update_unpenalised_coef(
+    X_unpen: NDArray[np.float64],
+    z_adj: NDArray[np.float64],
+    W: NDArray[np.float64],
+    pen_coef_contrib: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """
+    Update unpenalised coefficients via weighted OLS (no penalty).
+
+    Given working response z_adj and current penalised contribution
+    pen_coef_contrib = X_pen @ coef_pen, solve:
+
+        argmin_c  sum_i W_i (z_adj_i - pen_coef_contrib_i - X_unpen_i @ c)^2
+
+    Returns the WLS solution.
+    """
+    residual_for_unpen = z_adj - pen_coef_contrib
+    # Weighted normal equations: (X_unpen.T @ diag(W) @ X_unpen) c = X_unpen.T @ diag(W) @ r
+    XtW = X_unpen.T * W[np.newaxis, :]  # (p_unpen, n)
+    XtWX = XtW @ X_unpen               # (p_unpen, p_unpen)
+    XtWr = XtW @ residual_for_unpen    # (p_unpen,)
+    # Add tiny ridge for numerical stability
+    XtWX += 1e-10 * np.eye(XtWX.shape[0])
+    return np.linalg.solve(XtWX, XtWr)
+
+
 def _poisson_irls_lasso(
     X: NDArray[np.float64],
     y: NDArray[np.float64],
     exposure: NDArray[np.float64] | None,
     alpha: float,
+    n_col_per_factor: list[int],
     max_iter_irls: int = 20,
     max_iter_lasso: int = 2000,
     tol_irls: float = 1e-5,
@@ -72,6 +121,10 @@ def _poisson_irls_lasso(
     on the working response. We use sklearn's Lasso (coordinate descent) for
     the inner step.
 
+    The L1 penalty is applied only to δ₂,...,δ_K for each factor (the
+    adjacent differences). δ₁ (the anchor level) is unpenalised and its
+    coefficient is updated via weighted OLS at each step.
+
     Parameters
     ----------
     X : array (n, p)
@@ -82,6 +135,9 @@ def _poisson_irls_lasso(
         Exposure (years at risk).
     alpha : float
         L1 penalty strength.
+    n_col_per_factor : list[int]
+        Number of split-coded columns per factor.  Used to identify which
+        columns are δ₁ anchors (unpenalised) vs δ₂+ differences (penalised).
     max_iter_irls : int
         Maximum IRLS iterations.
     max_iter_lasso : int
@@ -102,34 +158,39 @@ def _poisson_irls_lasso(
     if exposure is None:
         exposure = np.ones(n)
 
+    # Identify penalised vs unpenalised columns
+    pen_mask = _build_penalised_mask(n_col_per_factor)
+    unpen_mask = ~pen_mask
+
+    X_pen = X[:, pen_mask]     # columns to be L1-penalised (δ₂+)
+    X_unpen = X[:, unpen_mask] # columns to be updated freely (δ₁ anchors)
+
     # Initialise: use log(y+0.5) - log(exposure) as starting linear predictor
     y_safe = np.maximum(y, 0.5)
-    eta = np.log(y_safe / exposure)
     mu = np.maximum(y_safe, 0.1)
 
     coef = np.zeros(p)
-    intercept = float(np.log(y_safe.mean() / exposure.mean()))
+    # P1-3 fix: use log of total rate, not log of ratio of means
+    intercept = float(np.log(y.sum() / exposure.sum()))
 
     for _ in range(max_iter_irls):
         # IRLS working response and weights
         # For Poisson: W = mu, z = eta + (y - mu) / mu
         W = mu  # working weights
-        eta_full = np.log(mu)
+        eta_full = np.log(np.maximum(mu, 1e-10))
         z = eta_full + (y - mu) / mu  # working response (log scale)
 
         # Working response relative to current intercept
-        # We want to fit: z = intercept + X @ coef, weighted by W
-        # Adjust z for intercept: z_adj = z - intercept
-        # Then Lasso fits: z_adj ≈ X @ coef
         z_adj = z - intercept
 
-        # Weighted Lasso: minimise (1/n) ||sqrt(W) * (z_adj - X@coef)||^2 + alpha * ||coef||_1
-        # sklearn Lasso with sample_weight handles this
         sqrt_W = np.sqrt(W)
 
-        # Weight the matrix and response
-        X_w = X * sqrt_W[:, np.newaxis]
-        z_w = z_adj * sqrt_W
+        # --- Penalised step: Lasso on penalised columns only ---
+        X_pen_w = X_pen * sqrt_W[:, np.newaxis]
+        # Remove unpenalised contribution from working response for the Lasso
+        unpen_contrib = X_unpen @ coef[unpen_mask]
+        z_adj_for_pen = z_adj - unpen_contrib
+        z_pen_w = z_adj_for_pen * sqrt_W
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -140,9 +201,18 @@ def _poisson_irls_lasso(
                 tol=_LASSO_TOL,
                 warm_start=False,
             )
-            lasso.fit(X_w, z_w)
+            lasso.fit(X_pen_w, z_pen_w)
 
-        new_coef = lasso.coef_
+        new_coef_pen = lasso.coef_
+
+        # --- Unpenalised step: WLS on anchor columns (δ₁ per factor) ---
+        pen_contrib = X_pen @ new_coef_pen
+        new_coef_unpen = _update_unpenalised_coef(X_unpen, z_adj, W, pen_contrib)
+
+        # Assemble full coefficient vector
+        new_coef = np.zeros(p)
+        new_coef[pen_mask] = new_coef_pen
+        new_coef[unpen_mask] = new_coef_unpen
 
         # Update intercept: weighted mean of residuals
         residual = z - X @ new_coef
@@ -150,7 +220,6 @@ def _poisson_irls_lasso(
 
         # Update eta and mu
         eta = new_intercept + X @ new_coef
-        # Clip for numerical stability
         eta = np.clip(eta, -20, 20)
         mu = exposure * np.exp(eta)
         mu = np.maximum(mu, 1e-10)
@@ -171,6 +240,7 @@ def _gamma_irls_lasso(
     y: NDArray[np.float64],
     weights: NDArray[np.float64] | None,
     alpha: float,
+    n_col_per_factor: list[int],
     max_iter_irls: int = 20,
     max_iter_lasso: int = 2000,
     tol_irls: float = 1e-5,
@@ -179,6 +249,9 @@ def _gamma_irls_lasso(
     Fit Gamma GLM with log link and L1 lasso penalty via IRLS.
 
     For Gamma: W = mu^2, z = eta + (y - mu) / mu.
+
+    The L1 penalty is applied only to δ₂,...,δ_K for each factor.
+    δ₁ anchors are unpenalised and updated via WLS.
 
     Parameters
     ----------
@@ -189,6 +262,8 @@ def _gamma_irls_lasso(
         Frequency weights (claim counts).
     alpha : float
         L1 penalty strength.
+    n_col_per_factor : list[int]
+        Number of split-coded columns per factor.
 
     Returns
     -------
@@ -199,6 +274,13 @@ def _gamma_irls_lasso(
     n, p = X.shape
     obs_weights = weights if weights is not None else np.ones(n)
 
+    # Identify penalised vs unpenalised columns
+    pen_mask = _build_penalised_mask(n_col_per_factor)
+    unpen_mask = ~pen_mask
+
+    X_pen = X[:, pen_mask]
+    X_unpen = X[:, unpen_mask]
+
     # Initialise
     mu = np.maximum(y, 1e-6)
 
@@ -206,21 +288,20 @@ def _gamma_irls_lasso(
     intercept = float(np.log(np.average(y, weights=obs_weights)))
 
     for _ in range(max_iter_irls):
-        # IRLS: for Gamma, W = 1/V(mu) * (deta/dmu)^{-2} = mu^{-2} * mu^2 = 1
-        # With log link: deta/dmu = 1/mu, V(mu) = mu^2
-        # W = 1 / (V(mu) * (deta/dmu)^2) = 1 / (mu^2 * 1/mu^2) = 1
-        # Actually: working weight W = mu^2 / V(mu) = 1 (for Gamma)
-        # But we apply obs_weights too
+        # IRLS: for Gamma with log link, W = obs_weights (canonical weight is 1)
         eta_full = np.log(np.maximum(mu, 1e-10))
         z = eta_full + (y - mu) / mu  # working response
 
-        # W = 1 for Gamma with log link; apply observation weights
-        W = obs_weights  # observation weights
+        W = obs_weights
 
         z_adj = z - intercept
         sqrt_W = np.sqrt(W)
-        X_w = X * sqrt_W[:, np.newaxis]
-        z_w = z_adj * sqrt_W
+
+        # --- Penalised step ---
+        X_pen_w = X_pen * sqrt_W[:, np.newaxis]
+        unpen_contrib = X_unpen @ coef[unpen_mask]
+        z_adj_for_pen = z_adj - unpen_contrib
+        z_pen_w = z_adj_for_pen * sqrt_W
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -231,9 +312,17 @@ def _gamma_irls_lasso(
                 tol=_LASSO_TOL,
                 warm_start=False,
             )
-            lasso.fit(X_w, z_w)
+            lasso.fit(X_pen_w, z_pen_w)
 
-        new_coef = lasso.coef_
+        new_coef_pen = lasso.coef_
+
+        # --- Unpenalised step ---
+        pen_contrib = X_pen @ new_coef_pen
+        new_coef_unpen = _update_unpenalised_coef(X_unpen, z_adj, W, pen_contrib)
+
+        new_coef = np.zeros(p)
+        new_coef[pen_mask] = new_coef_pen
+        new_coef[unpen_mask] = new_coef_unpen
 
         residual = z - X @ new_coef
         new_intercept = float(np.average(residual, weights=W))
@@ -264,6 +353,9 @@ class FactorClusterer:
     The penalised step uses IRLS with a Lasso inner solver, ensuring true
     L1 (not Ridge) penalisation — necessary for coefficients to shrink to
     exactly zero and enable clean level fusion.
+
+    The L1 penalty is applied only to δ₂,...,δ_K (adjacent differences)
+    for each factor.  δ₁ (the anchor level) is always unpenalised.
 
     Parameters
     ----------
@@ -397,7 +489,7 @@ class FactorClusterer:
             self._diagnostic_path = None
 
         coef, intercept, mu = self._fit_at_lambda(
-            X_split, y, exposure, self._best_lambda
+            X_split, y, exposure, self._best_lambda, n_col_per_factor
         )
 
         self._decode_groups(X, coef, n_col_per_factor, exposure)
@@ -517,6 +609,7 @@ class FactorClusterer:
         y: NDArray[np.float64],
         exposure: NDArray[np.float64] | None,
         alpha: float,
+        n_col_per_factor: list[int],
     ) -> tuple[NDArray[np.float64], float, NDArray[np.float64]]:
         """
         Fit penalised GLM at one alpha via IRLS + Lasso.
@@ -525,12 +618,12 @@ class FactorClusterer:
         """
         if self.family == "poisson":
             return _poisson_irls_lasso(
-                X_split, y, exposure, alpha,
+                X_split, y, exposure, alpha, n_col_per_factor,
                 max_iter_irls=self.max_iter_irls,
             )
         else:
             return _gamma_irls_lasso(
-                X_split, y, exposure, alpha,
+                X_split, y, exposure, alpha, n_col_per_factor,
                 max_iter_irls=self.max_iter_irls,
             )
 
@@ -595,7 +688,9 @@ class FactorClusterer:
 
         for i, alpha in enumerate(lambdas):
             try:
-                coef, intercept, mu = self._fit_at_lambda(X_split, y, exposure, alpha)
+                coef, intercept, mu = self._fit_at_lambda(
+                    X_split, y, exposure, alpha, n_col_per_factor
+                )
                 k_eff = self._count_effective_groups(coef, n_col_per_factor)
 
                 if self.family == "poisson":
@@ -608,8 +703,12 @@ class FactorClusterer:
                 bic_values[i] = compute_bic(ll, k_eff, n)
                 deviance_values[i] = dev
                 n_groups_values[i] = k_eff
-            except Exception:
-                pass
+            except Exception as exc:
+                warnings.warn(
+                    f"Lambda path: fit failed at alpha={alpha:.4g}: {exc}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
 
         best_idx = int(np.argmin(bic_values))
 
@@ -626,13 +725,20 @@ class FactorClusterer:
         coef: NDArray[np.float64],
         n_col_per_factor: list[int],
     ) -> int:
-        """Count total distinct merged groups across all factors."""
+        """
+        Count total effective free parameters across all factors.
+
+        For a factor with G merged groups, the dummy-coded GLM has G-1 free
+        parameters (reference level is absorbed into the intercept). We therefore
+        add G-1 per factor, plus 1 for the intercept itself.
+        """
         k_eff = 1  # intercept
         offset = 0
         for n_cols in n_col_per_factor:
             delta = coef[offset : offset + n_cols]
             groups = identify_merged_groups(delta, tol=self.tol)
-            k_eff += len(np.unique(groups))
+            n_groups = len(np.unique(groups))
+            k_eff += n_groups - 1  # P1-1 fix: G-1 free params per factor
             offset += n_cols
         return k_eff
 

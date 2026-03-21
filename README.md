@@ -9,11 +9,15 @@ Two GLM tools for UK insurance pricing, combined into one package.
 
 Pricing actuaries spend a lot of time on two tasks that should be automated: deciding how to band ordinal rating factors (vehicle age, NCD years) and building territory ratings that respect spatial structure. This package handles both.
 
+**Blog post:** [Nested GLMs with Neural Network Embeddings for Insurance Ratemaking](https://burning-cost.github.io/2026/03/09/nested-glms-with-neural-network-embeddings-for-insurance/)
+
 ## Quick Start
 
 ```bash
 pip install insurance-glm-tools
 ```
+
+> 💬 Questions or feedback? Start a [Discussion](https://github.com/burning-cost/insurance-glm-tools/discussions). Found it useful? A ⭐ helps others find it.
 
 ```python
 import numpy as np

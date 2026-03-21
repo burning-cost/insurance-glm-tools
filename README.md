@@ -14,7 +14,7 @@ Pricing actuaries spend a lot of time on two tasks that should be automated: dec
 ## Quick Start
 
 ```bash
-pip install insurance-glm-tools
+uv add insurance-glm-tools
 ```
 
 > 💬 Questions or feedback? Start a [Discussion](https://github.com/burning-cost/insurance-glm-tools/discussions). Found it useful? A ⭐ helps others find it.
@@ -80,7 +80,7 @@ The pipeline runs four phases:
 3. **Territory clustering** — groups postcode sectors into territories using SKATER spatial clustering; contiguity is guaranteed by construction
 4. **Outer GLM** — fits the final model with structured factors + embedding vectors + territory fixed effects
 
-The spatial pipeline (`geo_gdf` parameter) requires `pip install "insurance-glm-tools[spatial]"` and a GeoDataFrame of postcode sector polygons. If you do not have spatial data, you can omit the `geo_gdf` argument and the pipeline skips territory clustering — this still gives you the embedding benefit for high-cardinality categoricals.
+The spatial pipeline (`geo_gdf` parameter) requires `uv add "insurance-glm-tools[spatial]"` and a GeoDataFrame of postcode sector polygons. If you do not have spatial data, you can omit the `geo_gdf` argument and the pipeline skips territory clustering — this still gives you the embedding benefit for high-cardinality categoricals.
 
 The example below shows the non-spatial variant, which works with any tabular dataset:
 
@@ -174,19 +174,19 @@ BIC selects the regularisation strength automatically. The `min_exposure` constr
 ## Installation
 
 ```bash
-pip install insurance-glm-tools
+uv add insurance-glm-tools
 ```
 
 With spatial clustering support (geopandas, libpysal, spopt):
 
 ```bash
-pip install insurance-glm-tools[spatial]
+uv add "insurance-glm-tools[spatial]"
 ```
 
 With plotting:
 
 ```bash
-pip install insurance-glm-tools[plot]
+uv add "insurance-glm-tools[plot]"
 ```
 
 ## Dependencies

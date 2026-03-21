@@ -23,6 +23,9 @@ Utility functions:
 
 Optional dependencies:
 
+    Neural network embeddings require torch.
+    Install with: pip install insurance-glm-tools[neural]
+
     Spatial clustering requires geopandas, libpysal, spopt.
     Install with: pip install insurance-glm-tools[spatial]
 

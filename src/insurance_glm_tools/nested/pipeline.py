@@ -83,12 +83,17 @@ class NestedGLMPipeline:
         self.cluster_method = cluster_method
         self.random_state = random_state
 
+        if n_territories < 1:
+            raise ValueError(f"n_territories must be >= 1; got {n_territories}")
+        if embedding_lr <= 0:
+            raise ValueError(f"embedding_lr must be > 0; got {embedding_lr}")
+
         self._base_glm: Optional[NestedGLM] = None
         self._embedding_trainer: Optional[EmbeddingTrainer] = None
         self._territory_clusterer: Optional[TerritoryClusterer] = None
         self._outer_glm: Optional[NestedGLM] = None
 
-        self._geo_col: Optional[str] = None
+        self._geo_id_col: Optional[str] = None
         self._high_card_cols: Optional[List[str]] = None
         self._spatial_unit_col: Optional[str] = None
         self._geo_emb_cols: Optional[List[str]] = None
@@ -186,6 +191,13 @@ class NestedGLMPipeline:
 
         # ---- Phase 3: Territory clustering ----------------------------
         territory_labels_policy: Optional[pd.Series] = None
+        if geo_gdf is not None and geo_id_col is None:
+            warnings.warn(
+                "geo_gdf was provided but geo_id_col is None — territory clustering "
+                "will be skipped. Pass geo_id_col= to enable spatial clustering.",
+                UserWarning,
+                stacklevel=2,
+            )
         if geo_gdf is not None and geo_id_col is not None:
             geo_gdf = geo_gdf.copy().reset_index(drop=True)
 

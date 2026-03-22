@@ -30,7 +30,7 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from sklearn.linear_model import Lasso, ElasticNet
+from sklearn.linear_model import Lasso
 from statsmodels.genmod.generalized_linear_model import GLMResults
 
 from .penalties import (
@@ -170,8 +170,8 @@ def _poisson_irls_lasso(
     mu = np.maximum(y_safe, 0.1)
 
     coef = np.zeros(p)
-    # P1-3 fix: use log of total rate, not log of ratio of means
-    intercept = float(np.log(y.sum() / exposure.sum()))
+    # Guard against log(0) when y.sum() == 0 (all-zero target vector)
+    intercept = float(np.log(max(y.sum(), 0.5) / max(exposure.sum(), 1e-10)))
 
     for _ in range(max_iter_irls):
         # IRLS working response and weights
@@ -286,7 +286,8 @@ def _gamma_irls_lasso(
     mu = np.maximum(y, 1e-6)
 
     coef = np.zeros(p)
-    intercept = float(np.log(np.average(y, weights=obs_weights)))
+    avg_y = np.average(np.maximum(y, 1e-10), weights=obs_weights)
+    intercept = float(np.log(max(avg_y, 1e-10)))
 
     for _ in range(max_iter_irls):
         # IRLS: for Gamma with log link, W = obs_weights (canonical weight is 1)
@@ -404,6 +405,10 @@ class FactorClusterer:
             raise ValueError(f"method must be 'r2vf', got {method!r}")
         if n_lambda < 2:
             raise ValueError("n_lambda must be at least 2")
+        if min_exposure < 0:
+            raise ValueError(f"min_exposure must be >= 0; got {min_exposure}")
+        if tol < 0:
+            raise ValueError(f"tol must be >= 0; got {tol}")
 
         self.family = family
         self.method = method
@@ -710,6 +715,12 @@ class FactorClusterer:
                     RuntimeWarning,
                     stacklevel=2,
                 )
+
+        if np.all(np.isinf(bic_values)):
+            raise RuntimeError(
+                "All lambda values in the grid failed to converge. "
+                "Check that y contains non-zero values and exposure is valid."
+            )
 
         best_idx = int(np.argmin(bic_values))
 

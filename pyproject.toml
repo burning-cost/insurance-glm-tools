@@ -7,7 +7,7 @@ name = "insurance-glm-tools"
 version = "0.1.5"
 description = "GLM tools for UK insurance pricing: nested GLMs with entity embeddings, territory clustering, and automated factor-level banding via R2VF"
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
 requires-python = ">=3.10"
 authors = [
     { name = "Burning Cost", email = "pricing.frontier@gmail.com" },

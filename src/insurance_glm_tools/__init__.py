@@ -27,7 +27,12 @@ from __future__ import annotations
 from insurance_glm_tools.nested import NestedGLMPipeline
 from insurance_glm_tools.cluster import FactorClusterer, LevelMap
 
-__version__ = "0.1.5"
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("insurance-glm-tools")
+except PackageNotFoundError:
+    __version__ = "0.0.0"  # not installed
 
 __all__ = [
     "nested",

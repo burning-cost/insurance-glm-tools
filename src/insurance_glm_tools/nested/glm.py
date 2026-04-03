@@ -259,9 +259,10 @@ class NestedGLM:
         return float(self._result.deviance)
 
     @property
-    def result_(self) -> GLMResultsWrapper:
-        """Underlying ``statsmodels`` GLMResultsWrapper."""
-        self._check_fitted()
+    def result_(self) -> "GLMResultsWrapper | None":
+        """Underlying ``statsmodels`` GLMResultsWrapper, or None before fit() is called."""
+        if not self._fitted:
+            return None
         assert self._result is not None
         return self._result
 

@@ -657,14 +657,21 @@ class FactorClusterer:
         grad = np.abs(X_split.T @ residual) / len(y)
 
         # Exclude first column per factor (delta_1 is not penalised by fused lasso)
-        penalised_grad = np.concatenate([
+        penalised_slices = [
             grad[offset + 1 : offset + n_cols]
             for offset, n_cols in zip(
                 np.cumsum([0] + n_col_per_factor[:-1]),
                 n_col_per_factor,
             )
             if n_cols > 1
-        ])
+        ]
+
+        # When every factor has exactly one level (no penalised columns), return
+        # the default — np.concatenate([]) raises ValueError on an empty list.
+        if not penalised_slices:
+            return 1.0
+
+        penalised_grad = np.concatenate(penalised_slices)
 
         if len(penalised_grad) == 0:
             return 1.0

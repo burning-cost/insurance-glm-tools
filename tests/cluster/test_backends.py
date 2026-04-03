@@ -124,10 +124,11 @@ class TestFitPoissonRefit:
         return X, y, exposure
 
     def test_returns_glmresults(self):
-        from statsmodels.genmod.generalized_linear_model import GLMResults
+        from statsmodels.genmod.generalized_linear_model import GLMResults, GLMResultsWrapper
         X, y, exposure = self._make_data()
         result = fit_poisson_refit(X, y, exposure=exposure)
-        assert isinstance(result, GLMResults)
+        # model.fit() returns GLMResultsWrapper, a thin proxy; accept either
+        assert isinstance(result, (GLMResults, GLMResultsWrapper))
 
     def test_converged(self):
         X, y, exposure = self._make_data()
@@ -176,10 +177,11 @@ class TestFitGammaRefit:
         return X, y, weights
 
     def test_returns_glmresults(self):
-        from statsmodels.genmod.generalized_linear_model import GLMResults
+        from statsmodels.genmod.generalized_linear_model import GLMResults, GLMResultsWrapper
         X, y, weights = self._make_data()
         result = fit_gamma_refit(X, y, weights=weights)
-        assert isinstance(result, GLMResults)
+        # model.fit() returns GLMResultsWrapper, a thin proxy; accept either
+        assert isinstance(result, (GLMResults, GLMResultsWrapper))
 
     def test_converged(self):
         X, y, weights = self._make_data()

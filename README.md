@@ -1,9 +1,9 @@
 # insurance-glm-tools
 
 [![PyPI](https://img.shields.io/pypi/v/insurance-glm-tools)](https://pypi.org/project/insurance-glm-tools/)
+[![Downloads](https://img.shields.io/pypi/dm/insurance-glm-tools)](https://pypi.org/project/insurance-glm-tools/)
 [![Python](https://img.shields.io/pypi/pyversions/insurance-glm-tools)](https://pypi.org/project/insurance-glm-tools/)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)]()
-[![License](https://img.shields.io/badge/license-MIT-blue)]()
+[![License](https://img.shields.io/pypi/l/insurance-glm-tools)](https://pypi.org/project/insurance-glm-tools/)
 
 Two GLM tools for UK insurance pricing, combined into one package.
 
